@@ -2,7 +2,7 @@
 
 A self-contained HTML, CSS, and JavaScript tool for managing paint inventories and simulating subtractive color mixes based on Kubelka-Munk theory. This project aims to provide artists with a digital way to explore color interactions and materiality.
 
-**[Link to Live Demo Here - You'll get this after setting up GitHub Pages]**
+**https://andreclements.github.io/PaintInventoryTool/**
 
 ## Background & Context
 

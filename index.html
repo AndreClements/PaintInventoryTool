@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>André's Paint Inventory (Lab Model 0.10.5 - Global Detail Toggle)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #ccc; 
+            background-image: 
+                linear-gradient(45deg, #b0b0b0 25%, transparent 25%), 
+                linear-gradient(-45deg, #b0b0b0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #b0b0b0 75%),
+                linear-gradient(-45deg, transparent 75%, #b0b0b0 75%);
+            background-size: 20px 20px; 
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            color: #333;
+            line-height: 1.4;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .content-wrapper { width: 100%; }
+        h1, h2 {
+            text-align: center;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            text-shadow: 0px 0px 3px #fff, 0px 0px 3px #fff; 
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            background-color: rgba(255, 255, 255, 0.6); 
+        }
+        th, td {
+            border: 1px solid #777; 
+            padding: 5px;
+            text-align: left;
+            font-size: 0.80em;
+            vertical-align: top;
+        }
+        th {
+            background-color: #d0d0d0; 
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        /* Main Inventory Table Styling */
+        .main-inventory-table .select-col { width: 35px; text-align: center; padding: 2px;}
+        .main-inventory-table .swatch-col { width: 85px; }
+        .main-inventory-table .name-col { width: auto; word-break: break-all; -webkit-hyphens: auto; -ms-hyphens: auto; hyphens: auto; } /* More flexible width */
+        
+        /* Detail columns - hidden by default (compact view) */
+        .main-inventory-table .pigment-col,
+        .main-inventory-table .color-values-col,
+        .main-inventory-table .series-col,
+        .main-inventory-table .temp-col,
+        .main-inventory-table .opacity-col,
+        .main-inventory-table .notes-col {
+            display: none; 
+        }
+        /* Also hide headers for these columns in compact view */
+        .main-inventory-table thead th.pigment-col,
+        .main-inventory-table thead th.color-values-col,
+        .main-inventory-table thead th.series-col,
+        .main-inventory-table thead th.temp-col,
+        .main-inventory-table thead th.opacity-col,
+        .main-inventory-table thead th.notes-col {
+            display: none;
+        }
+
+        /* When table has 'detailed-view' class, show these columns and their headers */
+        .main-inventory-table.detailed-view .pigment-col,
+        .main-inventory-table.detailed-view .color-values-col,
+        .main-inventory-table.detailed-view .series-col,
+        .main-inventory-table.detailed-view .temp-col,
+        .main-inventory-table.detailed-view .opacity-col,
+        .main-inventory-table.detailed-view .notes-col {
+            display: table-cell;
+        }
+        .main-inventory-table.detailed-view thead th.pigment-col,
+        .main-inventory-table.detailed-view thead th.color-values-col,
+        .main-inventory-table.detailed-view thead th.series-col,
+        .main-inventory-table.detailed-view thead th.temp-col,
+        .main-inventory-table.detailed-view thead th.opacity-col,
+        .main-inventory-table.detailed-view thead th.notes-col {
+            display: table-cell;
+        }
+        
+        /* Specific widths when in detailed view */
+        .main-inventory-table.detailed-view .name-col { width: 25%; } /* Adjust name col width in detailed view */
+        .main-inventory-table.detailed-view .pigment-col { width: 10%; word-break: break-word;}
+        .main-inventory-table.detailed-view .color-values-col { width: 15%; font-size: 0.85em; }
+        .main-inventory-table.detailed-view .series-col,
+        .main-inventory-table.detailed-view .temp-col,
+        .main-inventory-table.detailed-view .opacity-col { text-align: center; width: 5%; }
+        .main-inventory-table.detailed-view .notes-col { width: auto; word-break: break-word;}
+
+
+        .masstone-swatch { width: 42px; height: 26px; border: 1px solid #555; margin-bottom: 3px; }
+        .sim-swatch-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-gap: 1px; width: 42px; }
+        .sim-swatch { width: 19px; height: 19px; border: 1px solid #777; }
+
+        .inventory-controls { display: flex; justify-content: flex-start; align-items: center; margin-bottom: 15px; padding: 10px; border-radius: 4px; flex-wrap: wrap; background-color: rgba(240, 240, 240, 0.8); gap: 10px; }
+        .inventory-controls button { padding: 6px 10px; border-radius: 3px; border: 1px solid #ccc; cursor: pointer; background-color: #e9e9e9; }
+        .inventory-controls button:hover { background-color: #dcdcdc; }
+
+        .control-group { margin: 5px 0px; }
+        .control-group label { margin-right: 8px; font-weight: bold; }
+        .control-group select { padding: 5px; border-radius: 3px; border: 1px solid #ccc; }
+
+        #mixingGridSection { margin-top: 20px; }
+        .grid-controls-container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; background-color: rgba(240, 240, 240, 0.8); padding: 5px; border-radius: 4px; margin-bottom: 5px; }
+        .grid-controls-container h2 { margin-right: auto; padding-left: 5px; font-size: 1.1em; }
+
+        .mixing-grid-container { overflow-x: auto; margin-bottom: 20px; }
+        .mixing-grid-table { table-layout: fixed; font-size: 0.7em; min-width: 300px; border-spacing: 0; background-color: rgba(220, 220, 220, 0.5); }
+        .mixing-grid-table th, 
+        .mixing-grid-table td.data-cell { border: 1px solid #666; vertical-align: middle; position: relative; }
+        .mixing-grid-table td.data-cell.highlighted-cell {
+            outline: 2px solid #007bff;
+            outline-offset: -2px; 
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); 
+        }
+        .mixing-grid-table td.data-cell .mix-swatch { z-index: 1; }
+        .mixing-grid-table th { background-color: #c8c8c8; line-height: 1.2; color: #222; text-align: center; }
+        .mixing-grid-table .header-paint-name, 
+        .mixing-grid-table .row-header-paint-name { font-size: 0.9em; white-space: normal; word-break: break-word; padding: 3px; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; }
+        .mixing-grid-table td.data-cell { padding: 0; cursor: pointer; } 
+        .mixing-grid-table .mix-swatch { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block; }
+        
+        .tooltip {
+            position: fixed; 
+            background: rgba(30, 30, 30, 0.95); 
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 0.9em; 
+            pointer-events: none; 
+            z-index: 10000; 
+            white-space: nowrap;
+            display: none; 
+            box-shadow: 0 3px 7px rgba(0,0,0,0.5);
+            border: 1px solid #444;
+        }
+
+        @media (max-width: 900px) {
+            .grid-controls-container { flex-direction: column; align-items: flex-start; }
+            .grid-controls-container h2 { margin-bottom: 5px; margin-right: 0;}
+            .grid-controls-container .control-group { margin-left: 0; margin-top: 5px;}
+            .mixing-grid-table { min-width: 350px; } 
+            .main-inventory-table.detailed-view .name-col { width: 40%; } 
+        }
+        @media (max-width: 768px) { 
+            .mixing-grid-table { min-width: 300px; font-size: 0.65em; } 
+            .main-inventory-table .swatch-col { width: 75px; }
+            .inventory-controls { flex-direction: column; align-items: stretch; }
+            .inventory-controls .control-group { width: 100%; }
+            .inventory-controls .control-group select { width: 100%; }
+            .inventory-controls button { width: 100%; margin-bottom: 5px;}
+        }
+        @media (max-width: 600px) {
+            body { padding: 5px; }
+            h1 { font-size: 1.5em; }
+            h2 { font-size: 1.2em; }
+            th, td { font-size: 0.7em; padding: 3px; }
+            .main-inventory-table .select-col { width: 30px; }
+            .main-inventory-table .swatch-col { width: 70px; }
+            .masstone-swatch { width: 36px; height: 22px; }
+            .sim-swatch-grid { width: 36px; }
+            .sim-swatch { width: 16px; height: 16px; }
+            .main-inventory-table.detailed-view .color-values-col { font-size: 0.8em; }
+            
+            .mixing-grid-table { font-size: 0.6em; min-width: 250px; } 
+            .mixing-grid-table .header-paint-name,
+            .mixing-grid-table .row-header-paint-name { font-size: 0.85em; }
+            .grid-controls-container .control-group select { font-size: 0.9em; padding: 4px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="content-wrapper">
+        <h1>André's Paint Inventory 0.10.5 (Global Detail Toggle)</h1> 
+
+        <div class="inventory-controls">
+            <button id="toggleInventoryView">Show Details</button>
+            <button id="selectAllPaints">Select All Visible</button>
+            <button id="deselectAllPaints">Deselect All Visible</button>
+            <div class="control-group">
+                <label for="opacityFilter">Filter by Opacity:</label>
+                <select id="opacityFilter">
+                    <option value="all">All</option>
+                    <option value="O">Opaque (O)</option>
+                    <option value="S">Semi (SO, ST)</option>
+                    <option value="T">Transparent (T)</option>
+                </select>
+            </div>
+        </div>
+
+        <table class="main-inventory-table" id="paintInventoryTable">
+            <thead>
+                <tr>
+                    <!-- No more 'View' toggle column -->
+                    <th class="select-col">Sel</th> 
+                    <th class="swatch-col">Swatch & Sims</th>
+                    <th class="name-col">Paint Name (Brand Abbrev.)</th> 
+                    <th class="pigment-col">Pigment(s)</th>
+                    <th class="color-values-col">L*a*b* / HSL(A)</th> 
+                    <th class="series-col">Series</th>
+                    <th class="temp-col">Temp.</th> 
+                    <th class="opacity-col">Opacity</th>
+                    <th class="notes-col">Important Notes</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        
+        <div id="mixingGridSection"> 
+            <div class="grid-controls-container">
+                <h2>Mixing Grid (Kubelka-Munk RGB Logic)</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-left:auto;"> 
+                    <div class="control-group">
+                        <label for="mixRatioSelector">Mix Ratio (Col:Row):</label>
+                        <select id="mixRatioSelector">
+                            <option value="0.25">25% : 75%</option><option value="0.33">33% : 67%</option>
+                            <option value="0.50" selected>50% : 50%</option><option value="0.67">67% : 33%</option>
+                            <option value="0.75">75% : 25%</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="gridSortColsOrder">Sort Columns (X) By:</label>
+                        <select id="gridSortColsOrder">
+                            <option value="name">Name (A-Z)</option><option value="lab_L">L* (Light-Dark)</option>
+                            <option value="lab_a">a* (Green-Red)</option><option value="lab_b">b* (Blue-Yellow)</option>
+                            <option value="hue">Hue (Derived)</option><option value="saturation">Saturation (Derived)</option>
+                            <option value="alpha">Opacity</option><option value="selection">Selection Order</option>
+                            <option value="random">Random</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="gridSortRowsOrder">Sort Rows (Y) By:</label>
+                        <select id="gridSortRowsOrder">
+                            <option value="name">Name (A-Z)</option><option value="lab_L">L* (Light-Dark)</option>
+                            <option value="lab_a">a* (Green-Red)</option><option value="lab_b">b* (Blue-Yellow)</option>
+                            <option value="hue">Hue (Derived)</option><option value="saturation">Saturation (Derived)</option>
+                            <option value="alpha">Opacity</option><option value="selection">Selection Order</option>
+                            <option value="random">Random</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                    <label for="bgColorChanger">Page Background:</label>
+                    <select id="bgColorChanger">
+                        <option value="checkered">Checkered</option>
+                        <option value="#808080">Neutral Grey (50%)</option>
+                        <option value="#FFFFFF" selected>White</option>
+                        <option value="#000000">Black</option>
+                        <option value="#FF0000">Red</option><option value="#FFFF00">Yellow</option>
+                        <option value="#0000FF">Blue</option><option value="#008000">Green</option>
+                    </select>
+                </div>
+                </div>
+            </div>
+            <div class="mixing-grid-container">
+                <table class="mixing-grid-table" id="mixingGridTable"></table>
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div> 
+
+    <script>
+        const Xn = 0.95047, Yn = 1.00000, Zn = 1.08883; // D65
+        const epsilon = 1e-6; // Small number to prevent division by zero
+
+        // --- Core Color Conversion Functions (Mostly Unchanged) ---
+        function srgbToLinear(c) { c = c / 255; return (c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+        function linearToSrgb(c_linear) { let c_srgb = (c_linear <= 0.0031308) ? 12.92 * c_linear : 1.055 * Math.pow(c_linear, 1 / 2.4) - 0.055; return Math.round(Math.max(0, Math.min(255, c_srgb * 255))); }
+        function rgbToXyz(r, g, b) { const Rl = srgbToLinear(r), Gl = srgbToLinear(g), Bl = srgbToLinear(b); return { X: Rl * 0.4124564 + Gl * 0.3575761 + Bl * 0.1804375, Y: Rl * 0.2126729 + Gl * 0.7151522 + Bl * 0.0721750, Z: Rl * 0.0193339 + Gl * 0.1191920 + Bl * 0.9503041 }; }
+        function xyzToLab(X, Y, Z) { const xr = X / Xn, yr = Y / Yn, zr = Z / Zn; const fx = (xr > 0.008856) ? Math.cbrt(xr) : (7.787 * xr) + (16 / 116); const fy = (yr > 0.008856) ? Math.cbrt(yr) : (7.787 * yr) + (16 / 116); const fz = (zr > 0.008856) ? Math.cbrt(zr) : (7.787 * zr) + (16 / 116); return { L: (116 * fy) - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) }; }
+        function labToXyz(L, a_star, b_star) { const fy = (L + 16) / 116, fx = a_star / 500 + fy, fz = fy - b_star / 200; const xr = (Math.pow(fx, 3) > 0.008856) ? Math.pow(fx, 3) : (fx - 16 / 116) / 7.787; const yr = (L > 7.9996248) ? Math.pow((L + 16) / 116, 3) : L / 903.3; const zr = (Math.pow(fz, 3) > 0.008856) ? Math.pow(fz, 3) : (fz - 16 / 116) / 7.787; return { X: xr * Xn, Y: yr * Yn, Z: zr * Zn }; }
+        function xyzToRgb(X, Y, Z) { const Rl = X * 3.2404542 + Y * -1.5371385 + Z * -0.4985314; const Gl = X * -0.9692660 + Y * 1.8760108 + Z * 0.0415560; const Bl = X * 0.0556434 + Y * -0.2040259 + Z * 1.0572252; return { r: linearToSrgb(Rl), g: linearToSrgb(Gl), b: linearToSrgb(Bl) }; }
+        function labToRgb(L, a, b_val) { const { X, Y, Z } = labToXyz(L, a, b_val); return xyzToRgb(X, Y, Z); }
+        function rgbToHsl(r, g, b_val) { r /= 255; g /= 255; b_val /= 255; const max = Math.max(r, g, b_val), min = Math.min(r, g, b_val); let h, s, l = (max + min) / 2; if (max === min) { h = s = 0; } else { const d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b_val) / d + (g < b_val ? 6 : 0); break; case g: h = (b_val - r) / d + 2; break; case b_val: h = (r - g) / d + 4; break; } h /= 6; } return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) }; }
+        function hslToRgb(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12; const a_val = s * Math.min(l, 1 - l); const f = n => l - a_val * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return { r: Math.round(255 * f(0)), g: Math.round(255 * f(8)), b: Math.round(255 * f(4)) }; }
+        function linearRgbToRgbaString(linRgb, alpha) { return `rgba(${linearToSrgb(linRgb.r)}, ${linearToSrgb(linRgb.g)}, ${linearToSrgb(linRgb.b)}, ${alpha.toFixed(2)})`; }
+        
+        // --- KUBELKA-MUNK HELPER FUNCTIONS ---
+        function estimateKSFromLinearRgb(linRgb, paintAlpha, scatteringStrength = 1.0) {
+            const base_s_from_alpha = Math.max(epsilon, paintAlpha); 
+            const s_val = base_s_from_alpha * scatteringStrength; 
+            const k_div_s_r = (linRgb.r < epsilon) ? (1 - epsilon) ** 2 / (2 * epsilon) : (1 - linRgb.r) ** 2 / (2 * linRgb.r);
+            const k_div_s_g = (linRgb.g < epsilon) ? (1 - epsilon) ** 2 / (2 * epsilon) : (1 - linRgb.g) ** 2 / (2 * linRgb.g);
+            const k_div_s_b = (linRgb.b < epsilon) ? (1 - epsilon) ** 2 / (2 * epsilon) : (1 - linRgb.b) ** 2 / (2 * linRgb.b);
+            return { k: { r: (linRgb.r > 1 - epsilon) ? 0 : k_div_s_r * s_val, g: (linRgb.g > 1 - epsilon) ? 0 : k_div_s_g * s_val, b: (linRgb.b > 1 - epsilon) ? 0 : k_div_s_b * s_val }, s: { r: s_val, g: s_val, b: s_val } };
+        }
+        function mixKS(ks1, ks2, ratio1, alpha1, alpha2) {
+            const ratio2 = 1 - ratio1;
+            return { k: { r: ks1.k.r * ratio1 + ks2.k.r * ratio2, g: ks1.k.g * ratio1 + ks2.k.g * ratio2, b: ks1.k.b * ratio1 + ks2.k.b * ratio2 }, s: { r: ks1.s.r * ratio1 + ks2.s.r * ratio2, g: ks1.s.g * ratio1 + ks2.s.g * ratio2, b: ks1.s.b * ratio1 + ks2.s.b * ratio2 }, alpha: alpha1 * ratio1 + alpha2 * ratio2 };
+        }
+        function calculateReflectanceFromKS(k_val, s_val) {
+            if (s_val < epsilon) return (k_val < epsilon) ? 1.0 : 0.0;
+            const k_div_s = k_val / s_val;
+            return 1 + k_div_s - Math.sqrt(k_div_s * k_div_s + 2 * k_div_s);
+        }
+        function mixKmColors(paint1, paint2, ratio1) {
+            const mixedKSAlpha = mixKS(paint1.km, paint2.km, ratio1, paint1.alpha, paint2.alpha);
+            const R_mix_r = calculateReflectanceFromKS(mixedKSAlpha.k.r, mixedKSAlpha.s.r);
+            const R_mix_g = calculateReflectanceFromKS(mixedKSAlpha.k.g, mixedKSAlpha.s.g);
+            const R_mix_b = calculateReflectanceFromKS(mixedKSAlpha.k.b, mixedKSAlpha.s.b);
+            return { linRgb: { r: R_mix_r, g: R_mix_g, b: R_mix_b }, alpha: mixedKSAlpha.alpha };
+        }
+        function glazeKmOverSubstrate(glazePaintKm, glazeAlpha, substrateLinearRgb, glazeThicknessFactor = 0.2) {
+            const resultLinRgb = { r: 0, g: 0, b: 0 };
+            const channels = ['r', 'g', 'b'];
+            channels.forEach(ch => {
+                let K = glazePaintKm.k[ch], S = glazePaintKm.s[ch], Rg = substrateLinearRgb[ch], R0_ch, T_ch;
+                if (S < epsilon) { resultLinRgb[ch] = (K < epsilon) ? Rg : Rg * Math.exp(-K * glazeThicknessFactor) * Math.exp(-K * glazeThicknessFactor); return; }
+                const a_km = (S + K) / S, b_km_sq = a_km * a_km - 1;
+                if (b_km_sq < 0) { R0_ch = (S * glazeThicknessFactor) / (1 + S * glazeThicknessFactor); T_ch  = 1 / (1 + S * glazeThicknessFactor); } 
+                else {
+                    const b_km = Math.sqrt(b_km_sq), bSX = b_km * S * glazeThicknessFactor;
+                    if (Math.abs(bSX) < epsilon || b_km < epsilon) {
+                        if (K < epsilon || b_km < epsilon) { R0_ch = (S * glazeThicknessFactor) / (1 + S * glazeThicknessFactor); T_ch  = 1 / (1 + S * glazeThicknessFactor); } 
+                        else { R0_ch = K * glazeThicknessFactor; T_ch = Math.max(0, 1 - (K + S) * glazeThicknessFactor); }
+                    } else { const sinh_bSX = Math.sinh(bSX), cosh_bSX = Math.cosh(bSX); R0_ch = sinh_bSX / (a_km * sinh_bSX + b_km * cosh_bSX); T_ch  = b_km / (a_km * sinh_bSX + b_km * cosh_bSX); }
+                }
+                R0_ch = Math.max(0, Math.min(1, R0_ch)); T_ch  = Math.max(0, Math.min(1, T_ch));
+                resultLinRgb[ch] = (Math.abs(1 - R0_ch * Rg) < epsilon) ? R0_ch : R0_ch + (T_ch * T_ch * Rg) / (1 - R0_ch * Rg);
+                resultLinRgb[ch] = Math.max(0, Math.min(1, resultLinRgb[ch]));
+            });
+            return { linRgb: resultLinRgb, alpha: glazeAlpha }; 
+        }
+
+        const paintsDataLab = [ /* PASTE FULL paintsDataLab ARRAY HERE - unchanged from original */ 
+            { name: "Titanium White", brand: "W&N", pigment: "PW6", series: "1", temp: "N-C", opacity: "O", notes: "Opaque, strong tinter.", masstoneLab: { L: 98, a: -1, b: -2 }, alpha: 1.0, scatteringStrength: 9.5 },
+            { name: "Transparent White", brand: "W&N", pigment: "PW4", series: "1", temp: "C", opacity: "T", notes: "Zinc. Subtle tints/glazing.", masstoneLab: { L: 90, a: -0.5, b: -1 }, alpha: 0.40, scatteringStrength: 1.8 },
+            { name: "Buff Titanium", brand: "DRG", pigment: "PW6,PY42,PBr7", series: "N/A", temp: "W", opacity: "O", notes: "Warm off-white, opaque.", masstoneLab: { L: 76, a: 1, b: 12 }, alpha: 1.0, scatteringStrength: 7.5 },
+            { name: "Windsor Lemon", brand: "W&N", pigment: "PY175", series: "2", temp: "C", opacity: "ST", notes: "Cool, greenish.", masstoneLab: { L: 95, a: -18, b: 86 }, alpha: 0.65, scatteringStrength: 0.7 },
+            { name: "Cadmium Yellow", brand: "W&N", pigment: "PY35", series: "4", temp: "N-W", opacity: "O", notes: "Bright mid-yellow. Cadmium.", masstoneLab: { L: 84, a: 20, b: 92 }, alpha: 1.0, scatteringStrength: 0.9 },
+            { name: "Transparent Yellow", brand: "W&N", pigment: "PY128", series: "3", temp: "W", opacity: "T", notes: "Warm, glazing yellow.", masstoneLab: { L: 88, a: 15, b: 100 }, alpha: 0.35, scatteringStrength: 0.4 },
+            { name: "Indian Yellow Deep", brand: "W&N", pigment: "PY139,PO62", series: "3", temp: "W", opacity: "T", notes: "Rich orange-yellow.", masstoneLab: { L: 72, a: 8, b: 102 }, alpha: 0.55, scatteringStrength: 0.5 },
+            { name: "Yellow Ochre", brand: "W&N", pigment: "PY43", series: "1", temp: "W", opacity: "O", notes: "Classic earth yellow.", masstoneLab: { L: 62, a: 20, b: 53 }, alpha: 1.0, scatteringStrength: 1.2 },
+            { name: "Cadmium Red", brand: "W&N", pigment: "PR108", series: "4", temp: "W", opacity: "O", notes: "Bright warm red. Cadmium.", masstoneLab: { L: 48, a: 69, b: 56 }, alpha: 1.0, scatteringStrength: 0.9 },
+            { name: "Perm. Alizarin Crimson", brand: "W&N", pigment: "PR177", series: "3", temp: "C", opacity: "T", notes: "Deep cool red, glazing.", masstoneLab: { L: 38, a: 53, b: 41 }, alpha: 0.65, scatteringStrength: 0.5 },
+            { name: "Perm. Rose", brand: "W&N", pigment: "PV19 Quin.", series: "3", temp: "C", opacity: "T", notes: "Clean cool rose.", masstoneLab: { L: 45, a: 73, b: 42 }, alpha: 0.40, scatteringStrength: 0.4 },
+            { name: "Perm. Magenta", brand: "W&N", pigment: "PV19 Quin.", series: "3", temp: "C", opacity: "T", notes: "Deep cool magenta.", masstoneLab: { L: 33, a: 52, b: -23 }, alpha: 0.50, scatteringStrength: 0.5 },
+            { name: "Perm. Mauve", brand: "W&N", pigment: "PV23 Diox.", series: "3", temp: "C", opacity: "ST", notes: "Powerful deep violet.", masstoneLab: { L: 33, a: 32, b: -32 }, alpha: 0.60, scatteringStrength: 0.7 },
+            { name: "Ultramarine (GS)", brand: "W&N", pigment: "PB29", series: "1", temp: "W (blue)", opacity: "T", notes: "Warmish blue (GS).", masstoneLab: { L: 30, a: 5, b: -41 }, alpha: 0.50, scatteringStrength: 0.6 },
+            { name: "Cobalt Blue", brand: "W&N", pigment: "PB28", series: "4", temp: "N-C", opacity: "ST", notes: "Stable mid-blue. Cobalt.", masstoneLab: { L: 35, a: 22, b: -71 }, alpha: 0.80, scatteringStrength: 0.9 },
+            { name: "Windsor Blue RS", brand: "W&N", pigment: "PB15:1 Phthalo", series: "1", temp: "C", opacity: "T", notes: "Powerful cool blue (RS).", masstoneLab: { L: 18, a: 25, b: -55 }, alpha: 0.45, scatteringStrength: 0.4 },
+            { name: "Prussian Blue", brand: "GP", pigment: "PB27", series: "N/A", temp: "C", opacity: "T", notes: "Deep cool blue, v. fast dry.", masstoneLab: { L: 18, a: 44, b: -74 }, alpha: 0.50, scatteringStrength: 0.5 },
+            { name: "Manganese Blue Hue", brand: "W&N", pigment: "PB15:3,PW4", series: "1", temp: "C", opacity: "ST", notes: "Bright greenish sky blue.", masstoneLab: { L: 58, a: 32, b: -116 }, alpha: 0.75, scatteringStrength: 1.4 },
+            { name: "Green Gold", brand: "W&N", pigment: "PY129", series: "3", temp: "W", opacity: "T", notes: "Earthy yellow-green.", masstoneLab: { L: 69, a: -7, b: 94 }, alpha: 0.45, scatteringStrength: 0.4 },
+            { name: "Terre Verte", brand: "W&N", pigment: "PG23", series: "1", temp: "C", opacity: "T", notes: "Cool green earth, low tint.", masstoneLab: { L: 48, a: -40, b: 21 }, alpha: 0.50, scatteringStrength: 0.5 },
+            { name: "Oxide of Chromium", brand: "W&N", pigment: "PG17", series: "1", temp: "N-W", opacity: "O", notes: "Opaque muted green. Chromium.", masstoneLab: { L: 55, a: -30, b: 25 }, alpha: 1.0, scatteringStrength: 1.1 },
+            { name: "Raw Sienna", brand: "W&N", pigment: "PBr7", series: "1", temp: "W", opacity: "ST", notes: "Warm yellow earth.", masstoneLab: { L: 55, a: 22, b: 50 }, alpha: 0.70, scatteringStrength: 0.8 },
+            { name: "Burnt Sienna", brand: "W&N", pigment: "PBr7 calc.", series: "1", temp: "W", opacity: "T", notes: "Warm orange-earth.", masstoneLab: { L: 27, a: 24, b: 13 }, alpha: 0.55, scatteringStrength: 0.6 },
+            { name: "Raw Umber", brand: "W&N", pigment: "PBr7", series: "1", temp: "C", opacity: "ST", notes: "Cool brown-earth, fast dry.", masstoneLab: { L: 27, a: 5, b: 16 }, alpha: 0.65, scatteringStrength: 0.8 },
+            { name: "Burnt Umber", brand: "W&N", pigment: "PBr7 calc.", series: "1", temp: "N-W", opacity: "SO", notes: "Dark brown earth, fast dry.", masstoneLab: { L: 19, a: 15, b: 13 }, alpha: 0.80, scatteringStrength: 0.9 },
+            { name: "Davy's Gray", brand: "W&N", pigment: "PBk19,PW6,PG17", series: "1", temp: "C", opacity: "SO", notes: "Neutral/cool grey.", masstoneLab: { L: 39, a: -2, b: 3 }, alpha: 0.80, scatteringStrength: 1.8 },
+            { name: "Charcoal Grey", brand: "W&N", pigment: "PBk8,PW6,PB29", series: "1", temp: "C", opacity: "O", notes: "Opaque cool grey.", masstoneLab: { L: 15, a: -1, b: 0 }, alpha: 1.0, scatteringStrength: 1.5 },
+            { name: "Payne's Grey", brand: "W&N", pigment: "PBk6,PB29", series: "1", temp: "C", opacity: "SO", notes: "Dark blue-grey.", masstoneLab: { L: 32, a: 0, b: -15 }, alpha: 0.80, scatteringStrength: 0.9 },
+            { name: "Ivory Black", brand: "W&N", pigment: "PBk9", series: "1", temp: "W (slight)", opacity: "ST", notes: "Warmish black, slow dry.", masstoneLab: { L: 11, a: -1, b: 0 }, alpha: 0.75, scatteringStrength: 0.7 },
+            { name: "Mars Black", brand: "W&N", pigment: "PBk11", series: "1", temp: "N-C", opacity: "O", notes: "Cool, opaque black, strong.", masstoneLab: { L: 10, a: 0, b: 0 }, alpha: 1.0, scatteringStrength: 1.1 },
+            { name: "Silver", brand: "W&N", pigment: "PV2 Mica", series: "2", temp: "C", opacity: "O", notes: "Metallic. Alkyd binder likely.", masstoneLab: { L: 80, a: 0, b: 0 }, alpha: 1.0, scatteringStrength: 1.0 }
+        ];
+
+        const defaultSelectedPaintNames = [
+            "Titanium White", "Ivory Black", "Windsor Lemon", "Cadmium Yellow", 
+            "Cadmium Red", "Perm. Alizarin Crimson", "Ultramarine (GS)", 
+            "Windsor Blue RS", "Yellow Ochre", "Burnt Sienna"
+        ];
+        
+        // Global state for inventory view
+        let isInventoryDetailedView = false;
+
+        const paints = paintsDataLab.map((p, index) => {
+            const sRgbMasstone = labToRgb(p.masstoneLab.L, p.masstoneLab.a, p.masstoneLab.b);
+            const linearRgbMasstone = { r: srgbToLinear(sRgbMasstone.r), g: srgbToLinear(sRgbMasstone.g), b: srgbToLinear(sRgbMasstone.b) };
+            const kmData = estimateKSFromLinearRgb(linearRgbMasstone, p.alpha, p.scatteringStrength || 1.0);
+            const hsl = rgbToHsl(sRgbMasstone.r, sRgbMasstone.g, sRgbMasstone.b);
+            // Removed isExpanded from individual paint object
+            return { ...p, sRgbMasstone, linearRgbMasstone, km: kmData, masstoneHsla: { ...hsl, a: p.alpha }, selected: defaultSelectedPaintNames.includes(p.name), originalIndex: index };
+        });
+
+        const TI_WHITE_LIN_RGB = { r: srgbToLinear(248), g: srgbToLinear(248), b: srgbToLinear(248) };
+        const NEUTRAL_GREY_LIN_RGB = { r: srgbToLinear(128), g: srgbToLinear(128), b: srgbToLinear(128) };
+        const MARS_BLACK_LIN_RGB = { r: srgbToLinear(12), g: srgbToLinear(12), b: srgbToLinear(12) };
+        const DAVYS_GREY_PAINT = paints.find(p => p.name === "Davy's Gray");
+
+        function populateInventoryTable() {
+            const tableBody = document.getElementById('paintInventoryTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ''; 
+            
+            const currentOpacityFilter = document.getElementById('opacityFilter').value;
+
+            sortPaints(paints, 'name').forEach(paint => {
+                const originalIndex = paint.originalIndex;
+                
+                let matchesFilter = false;
+                if (currentOpacityFilter === 'all') { matchesFilter = true; } 
+                else if (currentOpacityFilter === 'O' && paint.opacity === 'O') { matchesFilter = true; } 
+                else if (currentOpacityFilter === 'S' && (paint.opacity === 'SO' || paint.opacity === 'ST')) { matchesFilter = true; } 
+                else if (currentOpacityFilter === 'T' && paint.opacity === 'T') { matchesFilter = true; }
+                if (!matchesFilter) return;
+
+                const row = tableBody.insertRow();
+                // No data-paint-index or expanded class needed on row for this global toggle
+
+                // Select Cell
+                const selectCell = row.insertCell();
+                selectCell.classList.add('select-col');
+                selectCell.innerHTML = `<input type="checkbox" data-paint-index="${originalIndex}" ${paint.selected ? 'checked' : ''}>`;
+
+                // Swatch Cell (always visible)
+                const swatchCell = row.insertCell();
+                swatchCell.classList.add('swatch-col');
+                const masstoneColorString = linearRgbToRgbaString(paint.linearRgbMasstone, paint.alpha);
+                const glazeThicknessForSim = 0.4; 
+                const glazeOnWhiteKm = glazeKmOverSubstrate(paint.km, paint.alpha, TI_WHITE_LIN_RGB, glazeThicknessForSim);
+                const glazeOnGreyKm = glazeKmOverSubstrate(paint.km, paint.alpha, NEUTRAL_GREY_LIN_RGB, glazeThicknessForSim);
+                const glazeOnBlackKm = glazeKmOverSubstrate(paint.km, paint.alpha, MARS_BLACK_LIN_RGB, glazeThicknessForSim);
+                const mixWithDavysKm = DAVYS_GREY_PAINT ? mixKmColors(paint, DAVYS_GREY_PAINT, 0.5) : { linRgb: paint.linearRgbMasstone, alpha: paint.alpha };
+                swatchCell.innerHTML = `
+                    <div class="masstone-swatch" style="background-color: ${masstoneColorString};"></div>
+                    <div class="sim-swatch-grid">
+                        <div class="sim-swatch" style="background-color: ${linearRgbToRgbaString(glazeOnWhiteKm.linRgb, glazeOnWhiteKm.alpha)};" title="Glaze on Ti White (K-M)"></div>
+                        <div class="sim-swatch" style="background-color: ${linearRgbToRgbaString(glazeOnGreyKm.linRgb, glazeOnGreyKm.alpha)};" title="Glaze on Neutral Grey (K-M)"></div>
+                        <div class="sim-swatch" style="background-color: ${linearRgbToRgbaString(glazeOnBlackKm.linRgb, glazeOnBlackKm.alpha)};" title="Glaze on Mars Black (K-M)"></div>
+                        <div class="sim-swatch" style="background-color: ${linearRgbToRgbaString(mixWithDavysKm.linRgb, mixWithDavysKm.alpha)};" title="50/50 Mix w/ Davy's Grey (K-M)"></div>
+                    </div>`;
+                
+                // Name Cell (always visible)
+                row.insertCell().classList.add('name-col');
+                row.cells[row.cells.length-1].textContent = `${paint.name} (${paint.brand})`;
+                
+                // Detail Cells (visibility controlled by CSS via .detailed-view on table)
+                row.insertCell().classList.add('pigment-col');
+                row.cells[row.cells.length-1].textContent = paint.pigment;
+                
+                const colorValCell = row.insertCell(); 
+                colorValCell.classList.add('color-values-col');
+                colorValCell.innerHTML = `L:${paint.masstoneLab.L.toFixed(0)} a:${paint.masstoneLab.a.toFixed(0)} b:${paint.masstoneLab.b.toFixed(0)} A:${paint.alpha.toFixed(2)}<br><small>H:${paint.masstoneHsla.h}° S:${paint.masstoneHsla.s}% L:${paint.masstoneHsla.l}%</small>`; 
+                
+                row.insertCell().classList.add('series-col');
+                row.cells[row.cells.length-1].textContent = paint.series;
+                
+                row.insertCell().classList.add('temp-col');
+                row.cells[row.cells.length-1].textContent = paint.temp;
+                
+                row.insertCell().classList.add('opacity-col');
+                row.cells[row.cells.length-1].textContent = paint.opacity;
+                
+                row.insertCell().classList.add('notes-col');
+                row.cells[row.cells.length-1].textContent = paint.notes;
+            });
+        }
+
+        // Removed togglePaintRowDetails function
+
+        function populateMixingGrid(paintsArrayForRows, paintsArrayForColumns, mixRatioCol) {
+            const gridTable = document.getElementById('mixingGridTable');
+            gridTable.innerHTML = ''; 
+            const THead = gridTable.createTHead();
+            const TBody = gridTable.createTBody();
+            const headerRow = THead.insertRow();
+            const emptyCornerTh = headerRow.insertCell();
+            emptyCornerTh.style.cssText = `min-width:${baseCellSize}px; min-height:${baseCellSize}px; width:${baseCellSize}px; height:${baseCellSize}px; background-color:${document.body.style.backgroundColor || '#ccc'}; border:1px solid ${document.body.style.backgroundColor || '#ccc'};`;
+
+            paintsArrayForColumns.forEach(paintCol => {
+                const th = document.createElement('th');
+                th.style.cssText = `min-width:${baseCellSize}px; min-height:${baseCellSize}px; width:${baseCellSize}px; height:${baseCellSize}px; background-color:${linearRgbToRgbaString(paintCol.linearRgbMasstone, paintCol.alpha)};`;
+                const div = document.createElement('div');
+                div.classList.add('header-paint-name');
+                div.innerHTML = formatLabel(paintCol.name, charsPerLineForGridLabels);
+                const lum = 0.2126 * paintCol.sRgbMasstone.r + 0.7152 * paintCol.sRgbMasstone.g + 0.0722 * paintCol.sRgbMasstone.b;
+                div.style.color = (lum < 120 && paintCol.alpha > 0.7) ? '#f0f0f0' : '#222'; 
+                th.appendChild(div);
+                headerRow.appendChild(th);
+            });
+
+            paintsArrayForRows.forEach(paintRow => {
+                const row = TBody.insertRow();
+                const th = document.createElement('th');
+                th.style.cssText = `min-width:${baseCellSize}px; min-height:${baseCellSize}px; width:${baseCellSize}px; height:${baseCellSize}px; background-color:${linearRgbToRgbaString(paintRow.linearRgbMasstone, paintRow.alpha)};`;
+                const div = document.createElement('div');
+                div.classList.add('row-header-paint-name');
+                div.innerHTML = formatLabel(paintRow.name, charsPerLineForGridLabels);
+                const lumRow = 0.2126 * paintRow.sRgbMasstone.r + 0.7152 * paintRow.sRgbMasstone.g + 0.0722 * paintRow.sRgbMasstone.b;
+                div.style.color = (lumRow < 120 && paintRow.alpha > 0.7) ? '#f0f0f0' : '#222';
+                th.appendChild(div);
+                row.appendChild(th);
+
+                paintsArrayForColumns.forEach(paintCol => {
+                    const cell = row.insertCell();
+                    cell.classList.add('data-cell');
+                    cell.style.cssText = `min-width:${baseCellSize}px; min-height:${baseCellSize}px; width:${baseCellSize}px; height:${baseCellSize}px;`;
+                    let mixedKmResult;
+                    if (paintRow.originalIndex === paintCol.originalIndex) { mixedKmResult = { linRgb: paintRow.linearRgbMasstone, alpha: paintRow.alpha }; } 
+                    else { mixedKmResult = mixKmColors(paintCol, paintRow, mixRatioCol); }
+                    cell.dataset.tooltipText = `${paintCol.name} (${(mixRatioCol*100).toFixed(0)}%) + ${paintRow.name} (${((1-mixRatioCol)*100).toFixed(0)}%) (K-M)`;                     
+                    cell.innerHTML = `<div class="mix-swatch" style="background-color: ${linearRgbToRgbaString(mixedKmResult.linRgb, mixedKmResult.alpha)};"></div>`; 
+                });
+            });
+        }
+        
+        function formatLabel(name, charsPerLine) { if (!name) return ''; let result = ''; for (let i = 0; i < name.length; i += charsPerLine) { result += name.substring(i, i + charsPerLine).trim(); if (i + charsPerLine < name.length) result += '<br>'; } return result; }
+        let longestPaintNameLength = 0; paints.forEach(p => { if (p.name.length > longestPaintNameLength) longestPaintNameLength = p.name.length; });
+        const charsPerLineForGridLabels = Math.max(6, Math.round(longestPaintNameLength / 2.8)); 
+        let baseCellSize = Math.max(45, charsPerLineForGridLabels * 8); 
+        function updateBaseCellSizeForScreen() { if (window.innerWidth <= 600) baseCellSize = Math.max(35, charsPerLineForGridLabels * 6); else if (window.innerWidth <= 768) baseCellSize = Math.max(40, charsPerLineForGridLabels * 7); else baseCellSize = Math.max(50, charsPerLineForGridLabels * 8); }
+        
+        const paintInventoryTableElement = document.getElementById('paintInventoryTable');
+        const inventoryTableBody = paintInventoryTableElement?.getElementsByTagName('tbody')[0];
+        const mixingGridSection = document.getElementById('mixingGridSection');
+        const bgColorChanger = document.getElementById('bgColorChanger');
+        const gridSortColsOrder = document.getElementById('gridSortColsOrder');
+        const gridSortRowsOrder = document.getElementById('gridSortRowsOrder');
+        const mixRatioSelector = document.getElementById('mixRatioSelector');
+        const mixingGridTable = document.getElementById('mixingGridTable');
+        const tooltip = document.getElementById('tooltip');
+        const opacityFilter = document.getElementById('opacityFilter');
+        const selectAllPaintsBtn = document.getElementById('selectAllPaints');
+        const deselectAllPaintsBtn = document.getElementById('deselectAllPaints');
+        const toggleInventoryViewBtn = document.getElementById('toggleInventoryView');
+        
+        function getLuminanceFromHex(hexColor) { if (!hexColor || !/^#[0-9A-F]{6}$/i.test(hexColor)) return 128; const rgbInt = parseInt(hexColor.substring(1), 16); const r = (rgbInt >> 16) & 0xff, g = (rgbInt >> 8) & 0xff, b_val = (rgbInt >> 0) & 0xff; return 0.2126 * r + 0.7152 * g + 0.0722 * b_val; }
+        function updateTextAndTableColors(bgColorHex) { 
+            let actualBgColorForLum = bgColorHex;
+            if (!bgColorHex || bgColorHex === "checkered") { 
+                document.body.style.backgroundImage = `linear-gradient(45deg, #a0a0a0 25%, transparent 25%), linear-gradient(-45deg, #a0a0a0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #a0a0a0 75%), linear-gradient(-45deg, transparent 75%, #a0a0a0 75%)`;
+                document.body.style.backgroundSize = "20px 20px"; 
+                document.body.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
+                document.body.style.backgroundColor = "#d0d0d0";
+                actualBgColorForLum = '#d0d0d0'; 
+            } 
+            else { document.body.style.backgroundImage = "none"; document.body.style.backgroundColor = bgColorHex; }
+            
+            const luminance = getLuminanceFromHex(actualBgColorForLum);
+            const mainTableHeaders = document.querySelectorAll('.main-inventory-table > thead > tr > th');
+            const isDarkBg = luminance < 100, isMidDarkVibrant = luminance < 180 && (actualBgColorForLum === '#FF0000' || actualBgColorForLum === '#008000' || actualBgColorForLum === '#0000FF');
+            let textColor = '#333', headingColor = '#444', thBgColor = '#d0d0d0', tableBgColor = 'rgba(255, 255, 255, 0.6)', inventoryControlsBg = 'rgba(240, 240, 240, 0.8)';
+            
+            if (bgColorChanger.value === "checkered") { textColor = '#111'; headingColor = '#000'; document.querySelectorAll('h1, h2').forEach(h => h.style.textShadow = '0px 0px 2px #fff, 0px 0px 2px #fff'); } 
+            else if (isDarkBg || isMidDarkVibrant) { 
+                textColor = '#f0f0f0'; headingColor = '#f0f0f0'; 
+                thBgColor = isDarkBg ? '#555' : 'rgba(0,0,0,0.3)'; 
+                tableBgColor = isDarkBg ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)';
+                inventoryControlsBg = 'rgba(50,50,50,0.7)';
+                document.querySelectorAll('h1, h2').forEach(h => h.style.textShadow = 'none'); 
+            } else { 
+                document.querySelectorAll('h1, h2').forEach(h => h.style.textShadow = 'none'); 
+            }
+            document.body.style.color = textColor; document.querySelectorAll('h1, h2').forEach(h => h.style.color = headingColor);
+            mainTableHeaders.forEach(th => th.style.backgroundColor = thBgColor);
+            document.querySelectorAll('table').forEach(table => { table.style.backgroundColor = tableBgColor; });
+            document.querySelector('.inventory-controls').style.backgroundColor = inventoryControlsBg;
+
+            document.querySelectorAll('.mixing-grid-table th > div').forEach(div => { 
+                const th = div.parentElement;
+                let thBgColorForLuminance = th.style.backgroundColor || 'rgba(200,200,200,1)';
+                let lum = 128, alphaVal = 1.0;
+                function parseRgbaForLum(rgbaStr) { const match = rgbaStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/); if (!match) return { r: 128, g: 128, b: 128, a: 1 }; return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: match[4] !== undefined ? parseFloat(match[4]) : 1 };}
+                if (thBgColorForLuminance.startsWith('rgba')) { 
+                    const rgba = parseRgbaForLum(thBgColorForLuminance); 
+                    lum = 0.2126 * rgba.r + 0.7152 * rgba.g + 0.0722 * rgba.b; 
+                    alphaVal = rgba.a; 
+                    if (alphaVal < 0.4) lum = luminance; 
+                } else if (thBgColorForLuminance.startsWith('#')){ lum = getLuminanceFromHex(thBgColorForLuminance); }
+                div.style.color = (lum < 120 && alphaVal > 0.5) ? '#f0f0f0' : '#222';
+            });
+        }
+
+        function setBackgroundColorAndText(value) { updateTextAndTableColors(value === "checkered" ? null : value); }
+        
+        function sortPaints(paintsArray, sortBy) {
+            let sortedArray = [...paintsArray]; 
+            switch (sortBy) {
+                case 'name': sortedArray.sort((a, b) => a.name.localeCompare(b.name)); break;
+                case 'lab_L': sortedArray.sort((a, b) => b.masstoneLab.L - a.masstoneLab.L); break; 
+                case 'lab_a': sortedArray.sort((a, b) => a.masstoneLab.a - b.masstoneLab.a); break; 
+                case 'lab_b': sortedArray.sort((a, b) => a.masstoneLab.b - b.masstoneLab.b); break; 
+                case 'hue': sortedArray.sort((a, b) => a.masstoneHsla.h - b.masstoneHsla.h); break;
+                case 'saturation': sortedArray.sort((a, b) => b.masstoneHsla.s - a.masstoneHsla.s); break;
+                case 'alpha': sortedArray.sort((a, b) => a.alpha - b.alpha); break; 
+                case 'selection': break; 
+                case 'random': for (let i = sortedArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [sortedArray[i], sortedArray[j]] = [sortedArray[j], sortedArray[i]]; } break;
+            } return sortedArray;
+        }
+
+        function applyGridSettings() {
+            if (!mixingGridSection) return; 
+            updateBaseCellSizeForScreen();
+            const selectedPaints = paints.filter(p => p.selected);
+            if (selectedPaints.length === 0) { mixingGridSection.style.display = 'none'; return; }
+            mixingGridSection.style.display = 'block'; 
+            
+            const sortByCols = gridSortColsOrder.value, sortByRows = gridSortRowsOrder.value, mixRatioCol = parseFloat(mixRatioSelector.value);
+            const sortedPaintsForColumns = sortPaints(selectedPaints, sortByCols);
+            const sortedPaintsForRows = sortPaints(selectedPaints, sortByRows);
+            
+            populateMixingGrid(sortedPaintsForRows, sortedPaintsForColumns, mixRatioCol);
+            updateTextAndTableColors(bgColorChanger.value); 
+        }
+        
+        function handleSelectAllDeselectAll(shouldSelect) {
+            const visibleRows = inventoryTableBody.querySelectorAll('tr');
+            visibleRows.forEach(row => {
+                const checkbox = row.querySelector('input[type="checkbox"][data-paint-index]');
+                if (checkbox) {
+                    const paintIndex = parseInt(checkbox.dataset.paintIndex, 10);
+                    const paint = paints.find(p => p.originalIndex === paintIndex);
+                    if (paint) {
+                        paint.selected = shouldSelect;
+                        checkbox.checked = shouldSelect;
+                    }
+                }
+            });
+            applyGridSettings();
+        }
+
+        function toggleInventoryTableDetailView() {
+            isInventoryDetailedView = !isInventoryDetailedView;
+            paintInventoryTableElement.classList.toggle('detailed-view', isInventoryDetailedView);
+            toggleInventoryViewBtn.textContent = isInventoryDetailedView ? "Hide Details" : "Show Details";
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', () => { updateBaseCellSizeForScreen(); applyGridSettings(); });
+        bgColorChanger?.addEventListener('change', function() { setBackgroundColorAndText(this.value); applyGridSettings(); });
+        gridSortColsOrder?.addEventListener('change', applyGridSettings);
+        gridSortRowsOrder?.addEventListener('change', applyGridSettings);
+        mixRatioSelector?.addEventListener('change', applyGridSettings);
+        opacityFilter?.addEventListener('change', () => { populateInventoryTable(); applyGridSettings(); });
+        selectAllPaintsBtn?.addEventListener('click', () => handleSelectAllDeselectAll(true));
+        deselectAllPaintsBtn?.addEventListener('click', () => handleSelectAllDeselectAll(false));
+        toggleInventoryViewBtn?.addEventListener('click', toggleInventoryTableDetailView);
+
+        inventoryTableBody?.addEventListener('change', function(event) {
+            if (event.target.type === 'checkbox' && event.target.hasAttribute('data-paint-index')) {
+                const index = parseInt(event.target.getAttribute('data-paint-index'), 10);
+                const paint = paints.find(p => p.originalIndex === index);
+                if (paint) {
+                    paint.selected = event.target.checked;
+                    applyGridSettings();
+                }
+            }
+        });
+        
+        // Tooltip logic
+        if (mixingGridTable && tooltip) {
+            let currentlyHighlightedCell = null; 
+            mixingGridTable.addEventListener('click', (e) => {
+                const targetCell = e.target.closest('td.data-cell');
+                if (currentlyHighlightedCell) { currentlyHighlightedCell.classList.remove('highlighted-cell'); currentlyHighlightedCell = null; }
+                if (targetCell && targetCell.dataset.tooltipText) {
+                    tooltip.innerHTML = targetCell.dataset.tooltipText;
+                    let x = e.clientX, y = e.clientY;
+                    tooltip.style.left = `${x + 15}px`; tooltip.style.top = `${y + 15}px`; tooltip.style.display = 'block';
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    if (tooltipRect.right > window.innerWidth - 10) tooltip.style.left = `${x - tooltipRect.width - 15}px`;
+                    if (tooltipRect.bottom > window.innerHeight - 10) tooltip.style.top = `${y - tooltipRect.height - 15}px`;
+                    if (parseFloat(tooltip.style.left) < 10) tooltip.style.left = '10px';
+                    if (parseFloat(tooltip.style.top) < 10) tooltip.style.top = '10px';
+                    targetCell.classList.add('highlighted-cell'); currentlyHighlightedCell = targetCell;
+                } else { if (tooltip.style.display === 'block') tooltip.style.display = 'none'; }
+            });
+            document.addEventListener('click', (e) => {
+                if (!mixingGridTable.contains(e.target) && e.target !== tooltip) { 
+                    if (tooltip.style.display === 'block') tooltip.style.display = 'none';
+                    if (currentlyHighlightedCell) { currentlyHighlightedCell.classList.remove('highlighted-cell'); currentlyHighlightedCell = null; }
+                }
+            }, true); 
+        } else { console.error("Mixing grid table or tooltip element not found for click-tooltip logic!"); }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBaseCellSizeForScreen(); 
+            bgColorChanger.value = "#FFFFFF"; 
+            setBackgroundColorAndText(bgColorChanger.value); 
+            // Ensure initial state is compact (no .detailed-view class, button text "Show Details")
+            paintInventoryTableElement.classList.remove('detailed-view');
+            toggleInventoryViewBtn.textContent = "Show Details";
+            isInventoryDetailedView = false;
+
+            populateInventoryTable();
+            applyGridSettings(); 
+        });
+    </script>
+</body>
+</html>
